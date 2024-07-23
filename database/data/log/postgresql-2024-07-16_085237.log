@@ -1,0 +1,15 @@
+2024-07-16 08:52:37.616 UTC [1] LOG:  starting PostgreSQL 13.1 (Debian 13.1-1.pgdg100+1) on x86_64-pc-linux-gnu, compiled by gcc (Debian 8.3.0-6) 8.3.0, 64-bit
+2024-07-16 08:52:37.617 UTC [1] LOG:  listening on IPv4 address "0.0.0.0", port 5432
+2024-07-16 08:52:37.617 UTC [1] LOG:  listening on IPv6 address "::", port 5432
+2024-07-16 08:52:37.626 UTC [1] LOG:  listening on Unix socket "/var/run/postgresql/.s.PGSQL.5432"
+2024-07-16 08:52:37.657 UTC [26] LOG:  database system was interrupted; last known up at 2024-07-16 08:47:27 UTC
+2024-07-16 08:52:47.473 UTC [26] LOG:  database system was not properly shut down; automatic recovery in progress
+2024-07-16 08:52:47.612 UTC [26] LOG:  redo starts at 0/1601030
+2024-07-16 08:52:47.613 UTC [26] LOG:  invalid record length at 0/1601068: wanted 24, got 0
+2024-07-16 08:52:47.613 UTC [26] LOG:  redo done at 0/1601030
+2024-07-16 08:52:47.897 UTC [1] LOG:  database system is ready to accept connections
+2024-07-16 08:59:30.192 UTC [1] LOG:  received fast shutdown request
+2024-07-16 08:59:30.195 UTC [1] LOG:  aborting any active transactions
+2024-07-16 08:59:30.196 UTC [1] LOG:  background worker "logical replication launcher" (PID 32) exited with exit code 1
+2024-07-16 08:59:30.197 UTC [27] LOG:  shutting down
+2024-07-16 08:59:30.247 UTC [1] LOG:  database system is shut down

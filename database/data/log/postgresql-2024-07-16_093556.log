@@ -1,0 +1,24 @@
+2024-07-16 09:35:56.139 UTC [1] LOG:  starting PostgreSQL 13.1 (Debian 13.1-1.pgdg100+1) on x86_64-pc-linux-gnu, compiled by gcc (Debian 8.3.0-6) 8.3.0, 64-bit
+2024-07-16 09:35:56.139 UTC [1] LOG:  listening on IPv4 address "0.0.0.0", port 5432
+2024-07-16 09:35:56.139 UTC [1] LOG:  listening on IPv6 address "::", port 5432
+2024-07-16 09:35:56.146 UTC [1] LOG:  listening on Unix socket "/var/run/postgresql/.s.PGSQL.5432"
+2024-07-16 09:35:56.164 UTC [28] LOG:  database system was shut down at 2024-07-16 09:32:30 UTC
+2024-07-16 09:35:56.181 UTC [1] LOG:  database system is ready to accept connections
+2024-07-16 15:25:47.258 UTC [400] ERROR:  operator does not exist: character varying = integer at character 98
+2024-07-16 15:25:47.258 UTC [400] HINT:  No operator matches the given name and argument types. You might need to add explicit type casts.
+2024-07-16 15:25:47.258 UTC [400] STATEMENT:  SELECT event, count(*) AS volume FROM lorabot.events WHERE bot_id = 'AnalyticBot' and event_type = 100  
+	                                  and event_time between '2024-7-17' and '2024-7-17'
+	                         GROUP BY 1
+	                         ORDER BY 2 desc
+2024-07-16 15:26:24.767 UTC [401] ERROR:  operator does not exist: character varying = integer at character 98
+2024-07-16 15:26:24.767 UTC [401] HINT:  No operator matches the given name and argument types. You might need to add explicit type casts.
+2024-07-16 15:26:24.767 UTC [401] STATEMENT:  SELECT event, count(*) AS volume FROM lorabot.events WHERE bot_id = 'AnalyticBot' and event_type = 100  
+	                                  and event_time between '2024-07-17' and '2024-07-17'
+	                         GROUP BY 1
+	                         ORDER BY 2 desc
+2024-07-16 18:21:05.317 UTC [608] ERROR:  date/time field value out of range: "2024-16-07" at character 141
+2024-07-16 18:21:05.317 UTC [608] HINT:  Perhaps you need a different "datestyle" setting.
+2024-07-16 18:21:05.317 UTC [608] STATEMENT:  SELECT event, count(*) AS volume FROM lorabot.events WHERE bot_id = 'AnalyticBot' 
+	                                  and event_time between '2024-16-07' and '2024-17-07'
+	                         GROUP BY 1
+	                         ORDER BY 2 desc
