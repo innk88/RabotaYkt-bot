@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 import logging
 from lorabot.lorabot import LoraBot
 import re
+from playwright.async_api import async_playwright
 
 lora_bot = LoraBot("AnalyticBot")
 
@@ -16,7 +17,7 @@ logging.basicConfig(
 
 
 
-TOKEN = 'YOUR TOKEN'
+TOKEN = '6652863347:AAE84XREvCwdiRJMIfzTYVhpHJzZTUHNg8o'
 
 ASK_PASSWORD, ASK_DATE, ANALYTIC_MODE, ASK_DATE_START, ASK_DATE_END, ANALYTICS_DATA = range(6)
 
@@ -273,19 +274,103 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     reply_markup_keyboard = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
     await update.message.reply_text(text_start, reply_markup=reply_markup_keyboard)
 
+async def fetch_vacancies(category, salary) -> list:
+    try:
+        url = f"https://rabota.ykt.ru/jobs?text={category}&rcategoriesIds=&salaryMin{salary}=&salaryMax=&period=ALL"
+        print(url)
+        async with async_playwright() as playwright:
+            browser = await playwright.chromium.launch()
+            page = await browser.new_page()
+            await page.goto(url)
+            await page.wait_for_load_state('networkidle') 
+            await page.wait_for_selector('.r-vacancy_wrap')
+            job_elements = await page.query_selector_all('.r-vacancy_wrap')
+            jobs = [] 
+            for job_element in job_elements:
+                title_element=await job_element.query_selector('.r-vacancy_title') 
+                salary_element=await job_element.query_selector('.r-vacancy_salary')
+                address_element=await job_element.query_selector('.r-vacancy_work-address_address')
+                company_element= await job_element.query_selector('.r-vacancy_company a')
+
+                title_text=await title_element.inner_text() if title_element else "Не указано"
+                salary_text=await salary_element.inner_text() if salary_element else "Не указано"
+                address_text=await address_element.inner_text() if address_element else "Не указано"
+                company_text= await company_element.inner_text()
+                # obligation_selector='.r-vacancy_body_full div:nth-child(4)'
+                # obligation_element=await job_element.query_selector(obligation_selector)
+                # obligation_text=await obligation_element.inner_text()
+
+                requirement_selector='.r-vacancy_body_full div:nth-child(6)'
+                requirement_element= await job_element.query_selector(requirement_selector)
+                requirement_text=await requirement_element.inner_text()
+
+                condition_selector='.r-vacancy_body_full div:nth-child(8)'
+                condition_element= await job_element.query_selector(condition_selector)
+                condition_text=await condition_element.inner_text()
+
+                vacancy_id=await title_element.get_attribute('data-id')
+                #print(vacancy_id)
+
+                job_info = f"{title_text} - {salary_text}\n{company_text}\n\nТребования: {requirement_text}\n\nУсловия работы: {condition_text}\n\nАдрес места работы: {address_text}"
+                jobs.append(job_info)
+            await browser.close()
+            return jobs
+    except Exception as e:
+        print(f"Error fetching vacancies: {e}")
 
 
 async def message_find_vacancies(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     text_find_vac = 'Какую вакансию вы ищете?\nВыберите или введите категорию'
-    lora_bot.event('Поиск вакансий', 'command', update.effective_chat.id)
     keyboard = [
-        [KeyboardButton("Подработка💸"), KeyboardButton("Продавец🛒") ],
-        [KeyboardButton("Инженер🧑🏻‍🔧"), KeyboardButton("Разработчик👨🏻‍💻")],
-        [KeyboardButton("в начало")]        
+        [KeyboardButton("Подработка💸"), KeyboardButton("Продавец🛒")],
+        [KeyboardButton("Инженер"), KeyboardButton("Разработчик👨🏻‍💻")],
+        [KeyboardButton("в начало")]
     ]
     context.user_data['find_vac_x'] = True
     reply_markup_keyboard = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
     await update.message.reply_text(text_find_vac, reply_markup=reply_markup_keyboard)
+
+async def message_search_results( update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    category = context.user_data.get('category', '')
+    salary = context.user_data.get('salary', '') 
+    if not category: 
+        category=""
+        return 
+    await update.message.reply_text("Идет поиск вакансий")
+    jobs = await fetch_vacancies(category, salary) 
+    if not jobs: 
+        await update.message.reply_text("Не удалось найти вакансии по вашему запросу. Попробуйте позже.") 
+    else: 
+        for job in jobs: 
+            await update.message.reply_text(job)
+# async def handle_category_selection(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+#     category = update.message.text
+#     if category == "в начало":
+#         # Возвращаемся в начало
+#         await update.message.reply_text("Возвращаемся в начало.")
+#         return
+#     vacancies = await fetch_vacancies(category)
+#     if vacancies:
+#         for vacancy in vacancies:
+#             await update.message.reply_text(vacancy)
+#         # response = f"Найденные вакансии для категории '{category}':\n" + "\n".join(vacancies)
+#     else:
+#         response = f"Вакансии для категории '{category}' не найдены."
+#         await update.message.reply_text(response)
+
+
+# async def message_find_vacancies(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+#     text_find_vac = 'Какую вакансию вы ищете?\nВыберите или введите категорию'
+#     lora_bot.event('Поиск вакансий', 'command', update.effective_chat.id)
+#     keyboard = [
+#         [KeyboardButton("Подработка💸"), KeyboardButton("Продавец🛒") ],
+#         [KeyboardButton("Инженер🧑🏻‍🔧"), KeyboardButton("Разработчик👨🏻‍💻")],
+#         [KeyboardButton("в начало")]        
+#     ]
+#     context.user_data['find_vac_x'] = True
+#     reply_markup_keyboard = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
+#     await update.message.reply_text(text_find_vac, reply_markup=reply_markup_keyboard)
+
 
 async def message_my_subs(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     lora_bot.event('Мои подписки', 'menu', update.effective_chat.id)
@@ -313,6 +398,7 @@ async def message_salary(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     context.user_data['salary_vac_x'] = True
     reply_markup_keyboard = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
     await update.message.reply_text(text_salary, reply_markup=reply_markup_keyboard)
+
 
 async def message_oops(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     text_oops1 = 'Упс, произошла ошибка с сервером... Мы уже работаем над устранением данной ошибки.'
@@ -342,14 +428,22 @@ async def handle_keyboard(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         return
     
     if 'find_vac_x' in context.user_data and context.user_data['find_vac_x']:
+        context.user_data['category']=text
         await message_salary(update,context)
         context.user_data['find_vac_x'] = False
+        # await handle_category_selection(update, context)
         return
     
     if 'salary_vac_x' in context.user_data and context.user_data['salary_vac_x']:
-        await message_oops(update,context)
-        context.user_data['salary_vac_x'] = False
+        if text.startswith("от "):
+            salary = text.split(" ")[1].replace(" ", "")
+            context.user_data['salary'] = salary
+        else:
+            context.user_data['salary'] = ""
+        await message_search_results(update, context)
+        context.user_data['salary_vac_x']=False
         return
+    
     if 'oops_x' in context.user_data and context.user_data['oops_x']:
         
         if text == 'да🙋🏻‍♂️' or 'да':
@@ -408,7 +502,7 @@ def main():
     application.add_handler(conv_handler)
     # Обработчик всех текстовых сообщений
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_keyboard))
-
+    application.add_handler(CommandHandler('find_vacancies', message_find_vacancies))
     application.add_handler(CallbackQueryHandler(button))
 
     # Запускаем бота
