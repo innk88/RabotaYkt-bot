@@ -1,0 +1,11 @@
+2024-07-25 07:54:39.451 UTC [1] LOG:  starting PostgreSQL 13.1 (Debian 13.1-1.pgdg100+1) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 8.3.0-6) 8.3.0, 64-bit
+2024-07-25 07:54:39.452 UTC [1] LOG:  listening on IPv4 address "0.0.0.0", port 5432
+2024-07-25 07:54:39.452 UTC [1] LOG:  listening on IPv6 address "::", port 5432
+2024-07-25 07:54:39.453 UTC [1] LOG:  listening on Unix socket "/var/run/postgresql/.s.PGSQL.5432"
+2024-07-25 07:54:39.456 UTC [28] LOG:  database system was shut down at 2024-07-25 07:54:26 UTC
+2024-07-25 07:54:39.461 UTC [1] LOG:  database system is ready to accept connections
+2024-07-25 08:04:05.960 UTC [1] LOG:  received fast shutdown request
+2024-07-25 08:04:05.960 UTC [1] LOG:  aborting any active transactions
+2024-07-25 08:04:05.962 UTC [1] LOG:  background worker "logical replication launcher" (PID 34) exited with exit code 1
+2024-07-25 08:04:05.962 UTC [29] LOG:  shutting down
+2024-07-25 08:04:05.972 UTC [1] LOG:  database system is shut down
