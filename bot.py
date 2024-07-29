@@ -18,7 +18,7 @@ logging.basicConfig(
 
 
 
-TOKEN = ''
+TOKEN = '6652863347:AAE84XREvCwdiRJMIfzTYVhpHJzZTUHNg8o'
 
 ASK_PASSWORD, ASK_DATE, ANALYTIC_MODE, ASK_DATE_START, ASK_DATE_END, ANALYTICS_DATA = range(6)
 
@@ -281,14 +281,15 @@ def shorten_text(text, max_length=300):
     else:
         last_space = text.rfind(' ', 0, max_length)
         if last_space == -1:
-            return text[:max_length - 3] + '...'+'\n'
+            return text[:max_length - 3] + '...'
         else:
-            return text[:last_space] + '...'+'\n'
+            return text[:last_space] + '...'
 
 def html_to_text(html):
     text=re.sub(r'<br><br>', '<br>', html)
     text=re.sub(r'<br>', '\n', text)
     text=re.sub(r'<.*?>', '', text)
+    text=text.rstrip()
     return text
         
 async def fetch_vacancies(category, salary, page) -> list:
@@ -344,7 +345,7 @@ async def fetch_vacancies(category, salary, page) -> list:
                 # obligation_selector='.r-vacancy_body_full div:nth-child(4)'
                 # obligation_element=await job_element.query_selector(obligation_selector)
                 # obligation_text=await obligation_element.inner_text()
-                job_info = f"<b>{title_text}</b> - {salary_text}\n<i>{company_text}</i>\n\n<u>✅Требования:</u> {requirement_text} \n<u>✅Условия работы:</u> {condition_text}\n<u>📍Адрес места работы:</u> {address_text}"
+                job_info = f"<b>{title_text}</b> - {salary_text}\n<i>{company_text}</i>\n\n<u>✅Требования:</u> {requirement_text}\n\n<u>✅Условия работы:</u> {condition_text}\n\n<u>📍Адрес места работы:</u> {address_text}"
                 jobs.append(job_info)
             await browser.close()
             return jobs
@@ -377,11 +378,12 @@ async def message_search_results( update: Update, context: ContextTypes.DEFAULT_
     jobs_count_str = "".join(f)
     jobs_count=int(jobs_count_str)
     if not jobs: 
-        keyboard = [
-        [KeyboardButton("да🙋🏻‍♂️")],
-        [KeyboardButton("нет🙅🏻‍♂️")],
-        [KeyboardButton("В начало")]        
-        ]
+        # keyboard = [
+        # [KeyboardButton("да🙋🏻‍♂️")],
+        # [KeyboardButton("нет🙅🏻‍♂️")],
+        # [KeyboardButton("в начало")]        
+        # ]
+        keyboard=[[KeyboardButton("в начало")]]
         context.user_data['ask_to_sub'] = True
         reply_markup_keyboard = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
         await update.message.reply_text("По вашему запросу нет активных вакансий. Вы можете подписаться на эту вакансию и мы пришлем вам уведомление, как только появится новая😉\nХотите подписаться на вакансию?", reply_markup=reply_markup_keyboard)
@@ -394,9 +396,9 @@ async def message_search_results( update: Update, context: ContextTypes.DEFAULT_
         salary={context.user_data.get('salary')}
         f_salary=""
         if any(ch.isdigit() for ch in salary):
-            f_salary="от"
-            f_salary+=str(salary)
-            f_salary+="₽"
+            salary_int=int("".join(f"{s}" for s in salary))
+            salary_str=f"{salary_int:,}".replace(",", " ")
+            f_salary = f"от " +salary_str +" ₽"
         else:
             f_salary=salary
         context.user_data['formatted_salary']=f_salary
@@ -425,7 +427,7 @@ async def show_vacancies(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         keyboard.append([KeyboardButton("⬅️Назад")])
     if not(end_index==jobs_count and current_page==page_count):
         keyboard.append([KeyboardButton("Вперед➡️")])
-    keyboard.append([KeyboardButton("Подписаться на вакансию🔔")])
+    #keyboard.append([KeyboardButton("Подписаться на вакансию🔔")])
     keyboard.append([KeyboardButton("В начало")])
     reply_markup_keyboard = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True) 
     await update.message.reply_text("Чтобы посмотреть еще вакансии нажмите \"Вперед ➡️\" ", reply_markup=reply_markup_keyboard)
