@@ -18,7 +18,7 @@ logging.basicConfig(
 
 
 
-TOKEN = 'YOUR_TOKEN'
+TOKEN = '6652863347:AAE84XREvCwdiRJMIfzTYVhpHJzZTUHNg8o'
 
 ASK_PASSWORD, ASK_DATE, ANALYTIC_MODE, ASK_DATE_START, ASK_DATE_END, ANALYTICS_DATA = range(6)
 
@@ -345,7 +345,7 @@ async def fetch_vacancies(category, salary, page) -> list:
                 # obligation_selector='.r-vacancy_body_full div:nth-child(4)'
                 # obligation_element=await job_element.query_selector(obligation_selector)
                 # obligation_text=await obligation_element.inner_text()
-                job_info = f"<b>{title_text}</b> - {salary_text}\n<i>{company_text}</i>\n\n<u>✅Требования:</u> {requirement_text}\n\n<u>✅Условия работы:</u> {condition_text}\n\n<u>📍Адрес места работы:</u> {address_text}"
+                job_info = f"<b>{title_text}</b> - {salary_text}\n<i>{company_text}</i>\n\n<u>✅Требования:</u> {requirement_text}\n\n<u>✅Условия работы:</u> {condition_text}\n\n<u>📍Адрес места работы:</u> {address_text}\n\nПосмотреть на сайте: https://rabota.ykt.ru/jobs/view?id={vacancy_id}"
                 jobs.append(job_info)
             await browser.close()
             return jobs
