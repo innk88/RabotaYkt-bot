@@ -4,6 +4,8 @@ from datetime import datetime, timedelta
 import logging
 from lorabot.lorabot import LoraBot
 import re
+import asyncio
+from playwright.async_api import async_playwright
 
 lora_bot = LoraBot("AnalyticBot")
 
@@ -16,7 +18,7 @@ logging.basicConfig(
 
 
 
-TOKEN = 'YOUR TOKEN'
+TOKEN = ''
 
 ASK_PASSWORD, ASK_DATE, ANALYTIC_MODE, ASK_DATE_START, ASK_DATE_END, ANALYTICS_DATA = range(6)
 
@@ -273,19 +275,228 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     reply_markup_keyboard = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
     await update.message.reply_text(text_start, reply_markup=reply_markup_keyboard)
 
+def shorten_text(text, max_length=300):
+    if len(text) <= max_length:
+        return text
+    else:
+        last_space = text.rfind(' ', 0, max_length)
+        if last_space == -1:
+            return text[:max_length - 3] + '...'
+        else:
+            return text[:last_space] + '...'
+
+def html_to_text(html):
+    text=re.sub(r'<br><br>', '<br>', html)
+    text=re.sub(r'<br>', '\n', text)
+    text=re.sub(r'<.*?>', '', text)
+    text=text.rstrip()
+    return text
+        
+async def fetch_vacancies(category, salary, page) -> list:
+    try:
+        url = f"https://rabota.ykt.ru/jobs?text={category}&rcategoriesIds=&salaryMin{salary}=&salaryMax=&period=ALL&page={page}"
+        print(url)
+        async with async_playwright() as playwright:
+            browser = await playwright.chromium.launch()
+            page = await browser.new_page()
+            await page.goto(url)
+            await page.wait_for_load_state('load', timeout=60000) 
+            await page.wait_for_selector('.yui-panel')
+            jobs_count_element=await page.query_selector('.r-finded')
+            jobs_count_text=await jobs_count_element.inner_text()
+            job_elements = await page.query_selector_all('.r-vacancy_wrap')
+            jobs = [] 
+            jobs.append(jobs_count_text)
+            for job_element in job_elements:
+                title_element=await job_element.query_selector('.r-vacancy_title')
+                salary_element=await job_element.query_selector('.r-vacancy_salary')
+                company_element= await job_element.query_selector('.r-vacancy_company a')
+
+                title_text=await title_element.inner_text() if title_element else "Не указано"
+                salary_text=await salary_element.inner_text() if salary_element else "не указано"
+                salary_text=salary_text.replace("руб.", "₽")
+                company_text= await company_element.inner_text()
+                try:
+                    address_element=await job_element.query_selector('.r-vacancy_work-address_address')
+                    address_text=await address_element.inner_text() if address_element else "Не указано"
+                except:
+                    address_text="Не указано"
+
+                try:
+                    requirement_selector='.r-vacancy_body_full div:nth-child(6)'
+                    requirement_element= await job_element.query_selector(requirement_selector)
+                    requirement_html=await requirement_element.inner_html()
+                    requirement_text=html_to_text(requirement_html)
+                    requirement_text=shorten_text(requirement_text, max_length=300)
+                except:
+                    requirement_text="Не указано"
+
+                try:
+                    condition_selector='.r-vacancy_body_full div:nth-child(8)'
+                    condition_element= await job_element.query_selector(condition_selector)
+                    condition_html=await condition_element.inner_html()
+                    condition_text=html_to_text(condition_html)
+                    condition_text=shorten_text(condition_text, max_length=300)
+                except:
+                    condition_text="Не указано"
+                
+                vacancy_id=await title_element.get_attribute('data-id')
+                #print(vacancy_id)
+                # obligation_selector='.r-vacancy_body_full div:nth-child(4)'
+                # obligation_element=await job_element.query_selector(obligation_selector)
+                # obligation_text=await obligation_element.inner_text()
+                job_info = f"<b>{title_text}</b> - {salary_text}\n<i>{company_text}</i>\n\n<u>✅Требования:</u> {requirement_text}\n\n<u>✅Условия работы:</u> {condition_text}\n\n<u>📍Адрес места работы:</u> {address_text}"
+                jobs.append(job_info)
+            await browser.close()
+            return jobs
+    except Exception as e:
+        print(f"Error fetching vacancies: {e}")
 
 
 async def message_find_vacancies(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     text_find_vac = 'Какую вакансию вы ищете?\nВыберите или введите категорию'
-    lora_bot.event('Поиск вакансий', 'command', update.effective_chat.id)
     keyboard = [
-        [KeyboardButton("Подработка💸"), KeyboardButton("Продавец🛒") ],
-        [KeyboardButton("Инженер🧑🏻‍🔧"), KeyboardButton("Разработчик👨🏻‍💻")],
-        [KeyboardButton("в начало")]        
+        [KeyboardButton("Продавец💰"), KeyboardButton("Администратор🤳")],
+        [KeyboardButton("Водитель🚗"), KeyboardButton("Повар👩‍🍳")],
+        [KeyboardButton("Разнорабочий🛠️"), KeyboardButton("Бухгалтер🧾")],
+        [KeyboardButton("В начало")]
     ]
     context.user_data['find_vac_x'] = True
     reply_markup_keyboard = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
     await update.message.reply_text(text_find_vac, reply_markup=reply_markup_keyboard)
+
+async def message_search_results( update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    category = context.user_data.get('category', '')
+    salary = context.user_data.get('salary', '') 
+    if not category: 
+        category=""
+        return 
+    await update.message.reply_text("Идет поиск вакансий... 🔍")
+    jobs = await fetch_vacancies(category, salary, page=1)
+    jobs_count_str=jobs.pop(0)
+    f=filter(str.isdigit, jobs_count_str)
+    jobs_count_str = "".join(f)
+    jobs_count=int(jobs_count_str)
+    if not jobs: 
+        # keyboard = [
+        # [KeyboardButton("да🙋🏻‍♂️")],
+        # [KeyboardButton("нет🙅🏻‍♂️")],
+        # [KeyboardButton("в начало")]        
+        # ]
+        keyboard=[[KeyboardButton("в начало")]]
+        context.user_data['ask_to_sub'] = True
+        reply_markup_keyboard = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
+        await update.message.reply_text("По вашему запросу нет активных вакансий. Вы можете подписаться на эту вакансию и мы пришлем вам уведомление, как только появится новая😉\nХотите подписаться на вакансию?", reply_markup=reply_markup_keyboard)
+    else: 
+        context.user_data['jobs']=jobs
+        context.user_data['jobs_count']=jobs_count
+        context.user_data['current_group']=0
+        context.user_data['current_page']=1
+        context.user_data['page_count']=-(-jobs_count//20)
+        salary={context.user_data.get('salary')}
+        f_salary=""
+        if any(ch.isdigit() for ch in salary):
+            salary_int=int("".join(f"{s}" for s in salary))
+            salary_str=f"{salary_int:,}".replace(",", " ")
+            f_salary = f"от " +salary_str +" ₽"
+        else:
+            f_salary=salary
+        context.user_data['formatted_salary']=f_salary
+        # print(-(-jobs_count//20))
+        await update.message.reply_text(f"👀 Найдено {context.user_data.get('jobs_count')} вакансий по вашему запросу:\n Должность: {context.user_data.get('category')}\n Зарплата: {f_salary}")
+        await show_vacancies(update, context)
+
+async def show_vacancies(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    current_group=context.user_data.get('current_group', 0)
+    jobs=context.user_data.get('jobs', [])
+    page_count=context.user_data.get('page_count',1)
+    current_page=context.user_data.get('current_page', 1)
+    if not jobs:
+        await update.message.reply_text("Больше вакансий по вашему запросу нет. Попробуйте позже.") 
+        return
+    jobs_count=len(jobs)
+    vacancies_per_page=3
+    start_index=current_group*vacancies_per_page
+    end_index=min(start_index+vacancies_per_page, jobs_count)
+    current_index=start_index
+    for vacancy in jobs[start_index:end_index]:
+        await update.message.reply_text(f"{current_index+1+(current_page-1)*20}. {vacancy}", parse_mode="html")
+        current_index+=1
+    keyboard=[]
+    if not(current_group==0 and current_page==1):
+        keyboard.append([KeyboardButton("⬅️Назад")])
+    if not(end_index==jobs_count and current_page==page_count):
+        keyboard.append([KeyboardButton("Вперед➡️")])
+    #keyboard.append([KeyboardButton("Подписаться на вакансию🔔")])
+    keyboard.append([KeyboardButton("В начало")])
+    reply_markup_keyboard = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True) 
+    await update.message.reply_text("Чтобы посмотреть еще вакансии нажмите \"Вперед ➡️\" ", reply_markup=reply_markup_keyboard)
+
+async def handle_navigation(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text=update.message.text
+    if text=="Вперед➡️":
+        context.user_data['current_group']+=1
+        if(context.user_data.get('current_group')==7):
+            context.user_data['current_page']+=1
+            context.user_data['current_group']=0
+            category = context.user_data.get('category', '')
+            salary = context.user_data.get('salary', '') 
+            page=context.user_data.get('current_page')
+            jobs=await fetch_vacancies(category, salary, page)
+            jobs.pop(0)
+            context.user_data['jobs']=jobs
+    elif text=="⬅️Назад":
+        context.user_data['current_group']-=1
+        current_group=context.user_data.get('current_group')
+        print(current_group)
+        if(current_group==-1):
+            print("alo")
+            await update.message.reply_text("Идет загрузка")
+            context.user_data['current_page']-=1
+            context.user_data['current_group']=6
+            category = context.user_data.get('category', '')
+            salary = context.user_data.get('salary', '') 
+            page=context.user_data.get('current_page')
+            jobs=await fetch_vacancies(category, salary, page)
+            if not jobs: 
+                await update.message.reply_text("Проблемы с сервером. Попробуйте позже.")
+                await start(update, context)
+                return
+            jobs.pop(0)
+            context.user_data['jobs']=jobs
+    elif text=="Подписаться на вакансию🔔":
+        update.message.reply_text(f"Вы подписались на вакансию \"{context.user_data.get('category')}, зарплата - {context.user_data.get('formatted_salary')}\"")
+        #тут логика подписки 2
+    await show_vacancies(update, context)
+
+# async def handle_category_selection(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+#     category = update.message.text
+#     if category == "в начало":
+#         # Возвращаемся в начало
+#         await update.message.reply_text("Возвращаемся в начало.")
+#         return
+#     vacancies = await fetch_vacancies(category)
+#     if vacancies:
+#         for vacancy in vacancies:
+#             await update.message.reply_text(vacancy)
+#         # response = f"Найденные вакансии для категории '{category}':\n" + "\n".join(vacancies)
+#     else:
+#         response = f"Вакансии для категории '{category}' не найдены."
+#         await update.message.reply_text(response)
+
+
+# async def message_find_vacancies(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+#     text_find_vac = 'Какую вакансию вы ищете?\nВыберите или введите категорию'
+#     lora_bot.event('Поиск вакансий', 'command', update.effective_chat.id)
+#     keyboard = [
+#         [KeyboardButton("Подработка💸"), KeyboardButton("Продавец🛒") ],
+#         [KeyboardButton("Инженер🧑🏻‍🔧"), KeyboardButton("Разработчик👨🏻‍💻")],
+#         [KeyboardButton("в начало")]        
+#     ]
+#     context.user_data['find_vac_x'] = True
+#     reply_markup_keyboard = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
+#     await update.message.reply_text(text_find_vac, reply_markup=reply_markup_keyboard)
+
 
 async def message_my_subs(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     lora_bot.event('Мои подписки', 'menu', update.effective_chat.id)
@@ -306,13 +517,17 @@ async def message_help_me(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 async def message_salary(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     text_salary = 'Выберите нужную вам зарплату или введите свое значение💸'
     keyboard = [
-        [KeyboardButton("от 30 000"), KeyboardButton("от 50 000") ],
-        [KeyboardButton("от 80 000"), KeyboardButton("от 100 000")],
-        [KeyboardButton("пропустить"), KeyboardButton("в начало")]        
+        [KeyboardButton("от 20 000"), KeyboardButton("от 40 000") ],
+        [KeyboardButton("от 50 000"), KeyboardButton("от 80 000")],
+        [KeyboardButton("от 100 000"), KeyboardButton("пропустить")],
+        [KeyboardButton("В начало")]        
     ]
     context.user_data['salary_vac_x'] = True
     reply_markup_keyboard = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
     await update.message.reply_text(text_salary, reply_markup=reply_markup_keyboard)
+
+
+
 
 async def message_oops(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     text_oops1 = 'Упс, произошла ошибка с сервером... Мы уже работаем над устранением данной ошибки.'
@@ -342,14 +557,24 @@ async def handle_keyboard(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         return
     
     if 'find_vac_x' in context.user_data and context.user_data['find_vac_x']:
+        f=filter(str.isalpha, text)
+        text = "".join(f)
+        context.user_data['category']=text
         await message_salary(update,context)
         context.user_data['find_vac_x'] = False
+        # await handle_category_selection(update, context)
         return
     
     if 'salary_vac_x' in context.user_data and context.user_data['salary_vac_x']:
-        await message_oops(update,context)
-        context.user_data['salary_vac_x'] = False
+        if (text=="пропустить"):
+            context.user_data['salary'] = ""
+        else:
+            f=filter(str.isdigit, text)
+            context.user_data['salary']="".join(f)
+        await message_search_results(update, context)
+        context.user_data['salary_vac_x']=False
         return
+    
     if 'oops_x' in context.user_data and context.user_data['oops_x']:
         
         if text == 'да🙋🏻‍♂️' or 'да':
@@ -372,6 +597,18 @@ async def handle_keyboard(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         await update.message.reply_text(text_oops)
         context.user_data['oops_x'] = False   
         return
+    
+    if 'ask_to_sub' in context.user_data and context.user_data['ask_to_sub']:
+        # if text=='да🙋🏻‍♂️' or 'да':
+        #     salary={context.user_data.get('salary')}
+        #     ot_text=""
+        #     if any(ch.isdigit() for ch in salary):
+        #         ot_text+=" от"
+        #     await update.message.reply_text(f"Вы подписались на вакансию \"{context.user_data.get('category')}, зарплата -{ot_text} {salary}\"")
+        #     #тут логика подписки
+        # if text=='нет🙅🏻‍♂️' or 'нет':
+        #     await update.message.reply_text("Можете начать новый поиск🔍 или перейти на наш сайт🔗")
+        context.user_data['ask_to_sub']=False
 
     if  text == "Поиск вакансий🔍":
         await message_find_vacancies(update,context)
@@ -382,6 +619,9 @@ async def handle_keyboard(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         await message_site(update,context)
     elif text == "Помощь🙏🏻":
         await message_help_me(update,context)
+    elif text in ["Вперед➡️", "⬅️Назад", "Подписаться на вакансию🔔"]:
+        await handle_navigation(update, context)
+        return
     else:
         await update.message.reply_text("Я вас не понимаю. Вы можете вернуться в стартовое меню командой /start.")
 
@@ -408,7 +648,7 @@ def main():
     application.add_handler(conv_handler)
     # Обработчик всех текстовых сообщений
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_keyboard))
-
+    application.add_handler(CommandHandler('find_vacancies', message_find_vacancies))
     application.add_handler(CallbackQueryHandler(button))
 
     # Запускаем бота
