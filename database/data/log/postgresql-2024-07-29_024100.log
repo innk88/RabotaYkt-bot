@@ -1,0 +1,6 @@
+2024-07-29 02:41:00.684 UTC [1] LOG:  starting PostgreSQL 13.1 (Debian 13.1-1.pgdg100+1) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 8.3.0-6) 8.3.0, 64-bit
+2024-07-29 02:41:00.684 UTC [1] LOG:  listening on IPv4 address "0.0.0.0", port 5432
+2024-07-29 02:41:00.684 UTC [1] LOG:  listening on IPv6 address "::", port 5432
+2024-07-29 02:41:00.685 UTC [1] LOG:  listening on Unix socket "/var/run/postgresql/.s.PGSQL.5432"
+2024-07-29 02:41:00.689 UTC [28] LOG:  database system was shut down at 2024-07-26 08:39:04 UTC
+2024-07-29 02:41:00.693 UTC [1] LOG:  database system is ready to accept connections

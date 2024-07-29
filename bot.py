@@ -281,12 +281,13 @@ def shorten_text(text, max_length=300):
     else:
         last_space = text.rfind(' ', 0, max_length)
         if last_space == -1:
-            return text[:max_length - 3] + '...'
+            return text[:max_length - 3] + '...'+'\n'
         else:
-            return text[:last_space] + '...'
+            return text[:last_space] + '...'+'\n'
 
 def html_to_text(html):
-    text=re.sub(r'<br>', '\n', html)
+    text=re.sub(r'<br><br>', '<br>', html)
+    text=re.sub(r'<br>', '\n', text)
     text=re.sub(r'<.*?>', '', text)
     return text
         
@@ -311,9 +312,9 @@ async def fetch_vacancies(category, salary, page) -> list:
                 company_element= await job_element.query_selector('.r-vacancy_company a')
 
                 title_text=await title_element.inner_text() if title_element else "Не указано"
-                salary_text=await salary_element.inner_text() if salary_element else "Не указано"
+                salary_text=await salary_element.inner_text() if salary_element else "не указано"
+                salary_text=salary_text.replace("руб.", "₽")
                 company_text= await company_element.inner_text()
-                print(title_text)
                 try:
                     address_element=await job_element.query_selector('.r-vacancy_work-address_address')
                     address_text=await address_element.inner_text() if address_element else "Не указано"
@@ -343,7 +344,7 @@ async def fetch_vacancies(category, salary, page) -> list:
                 # obligation_selector='.r-vacancy_body_full div:nth-child(4)'
                 # obligation_element=await job_element.query_selector(obligation_selector)
                 # obligation_text=await obligation_element.inner_text()
-                job_info = f"<b>{title_text}</b> - {salary_text}\n<i>{company_text}</i>\n\n<u>Требования:</u> {requirement_text}\n\n<u>Условия работы:</u> {condition_text}\n\n<u>Адрес места работы:</u> {address_text}"
+                job_info = f"<b>{title_text}</b> - {salary_text}\n<i>{company_text}</i>\n\n<u>✅Требования:</u> {requirement_text} \n<u>✅Условия работы:</u> {condition_text}\n<u>📍Адрес места работы:</u> {address_text}"
                 jobs.append(job_info)
             await browser.close()
             return jobs
@@ -354,9 +355,10 @@ async def fetch_vacancies(category, salary, page) -> list:
 async def message_find_vacancies(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     text_find_vac = 'Какую вакансию вы ищете?\nВыберите или введите категорию'
     keyboard = [
-        [KeyboardButton("Подработка💸"), KeyboardButton("Продавец🛒")],
-        [KeyboardButton("Инженер"), KeyboardButton("Разработчик👨🏻‍💻")],
-        [KeyboardButton("в начало")]
+        [KeyboardButton("Продавец💰"), KeyboardButton("Администратор🤳")],
+        [KeyboardButton("Водитель🚗"), KeyboardButton("Повар👩‍🍳")],
+        [KeyboardButton("Разнорабочий🛠️"), KeyboardButton("Бухгалтер🧾")],
+        [KeyboardButton("В начало")]
     ]
     context.user_data['find_vac_x'] = True
     reply_markup_keyboard = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
@@ -368,28 +370,39 @@ async def message_search_results( update: Update, context: ContextTypes.DEFAULT_
     if not category: 
         category=""
         return 
-    await update.message.reply_text("Идет поиск вакансий")
+    await update.message.reply_text("Идет поиск вакансий... 🔍")
     jobs = await fetch_vacancies(category, salary, page=1)
     jobs_count_str=jobs.pop(0)
     f=filter(str.isdigit, jobs_count_str)
     jobs_count_str = "".join(f)
     jobs_count=int(jobs_count_str)
     if not jobs: 
-        await update.message.reply_text("Не удалось найти вакансии по вашему запросу. Попробуйте позже.") 
+        keyboard = [
+        [KeyboardButton("да🙋🏻‍♂️")],
+        [KeyboardButton("нет🙅🏻‍♂️")],
+        [KeyboardButton("В начало")]        
+        ]
+        context.user_data['ask_to_sub'] = True
+        reply_markup_keyboard = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
+        await update.message.reply_text("По вашему запросу нет активных вакансий. Вы можете подписаться на эту вакансию и мы пришлем вам уведомление, как только появится новая😉\nХотите подписаться на вакансию?", reply_markup=reply_markup_keyboard)
     else: 
         context.user_data['jobs']=jobs
         context.user_data['jobs_count']=jobs_count
         context.user_data['current_group']=0
         context.user_data['current_page']=1
         context.user_data['page_count']=-(-jobs_count//20)
-        print(-(-jobs_count//20))
-        await update.message.reply_text(f"Найдено вакансий по вашему запросу {context.user_data.get('jobs_count')}")
+        salary={context.user_data.get('salary')}
+        f_salary=""
+        if any(ch.isdigit() for ch in salary):
+            f_salary="от"
+            f_salary+=str(salary)
+            f_salary+="₽"
+        else:
+            f_salary=salary
+        context.user_data['formatted_salary']=f_salary
+        # print(-(-jobs_count//20))
+        await update.message.reply_text(f"👀 Найдено {context.user_data.get('jobs_count')} вакансий по вашему запросу:\n Должность: {context.user_data.get('category')}\n Зарплата: {f_salary}")
         await show_vacancies(update, context)
-        #for job in jobs: 
-        # for i in range(4):
-        #     if(jobs[i]):
-        #         await update.message.reply_text(f"{i+1}. {jobs[i]}", parse_mode="html")
-                #await asyncio.sleep(2)
 
 async def show_vacancies(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     current_group=context.user_data.get('current_group', 0)
@@ -407,20 +420,19 @@ async def show_vacancies(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     for vacancy in jobs[start_index:end_index]:
         await update.message.reply_text(f"{current_index+1+(current_page-1)*20}. {vacancy}", parse_mode="html")
         current_index+=1
-    nav_keyboard=[]
     keyboard=[]
     if not(current_group==0 and current_page==1):
-        nav_keyboard.append(KeyboardButton("Назад"))
+        keyboard.append([KeyboardButton("⬅️Назад")])
     if not(end_index==jobs_count and current_page==page_count):
-        nav_keyboard.append(KeyboardButton("Вперед"))
-    keyboard.append(nav_keyboard)
+        keyboard.append([KeyboardButton("Вперед➡️")])
+    keyboard.append([KeyboardButton("Подписаться на вакансию🔔")])
     keyboard.append([KeyboardButton("В начало")])
     reply_markup_keyboard = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True) 
-    await update.message.reply_text("Навигация: ", reply_markup=reply_markup_keyboard)
+    await update.message.reply_text("Чтобы посмотреть еще вакансии нажмите \"Вперед ➡️\" ", reply_markup=reply_markup_keyboard)
 
 async def handle_navigation(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text=update.message.text
-    if text=="Вперед":
+    if text=="Вперед➡️":
         context.user_data['current_group']+=1
         if(context.user_data.get('current_group')==7):
             context.user_data['current_page']+=1
@@ -431,7 +443,7 @@ async def handle_navigation(update: Update, context: ContextTypes.DEFAULT_TYPE):
             jobs=await fetch_vacancies(category, salary, page)
             jobs.pop(0)
             context.user_data['jobs']=jobs
-    elif text=="Назад":
+    elif text=="⬅️Назад":
         context.user_data['current_group']-=1
         current_group=context.user_data.get('current_group')
         print(current_group)
@@ -450,10 +462,9 @@ async def handle_navigation(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 return
             jobs.pop(0)
             context.user_data['jobs']=jobs
-    elif text=="Назад в меню":
-        await start(update, context)
-        return
-    
+    elif text=="Подписаться на вакансию🔔":
+        update.message.reply_text(f"Вы подписались на вакансию \"{context.user_data.get('category')}, зарплата - {context.user_data.get('formatted_salary')}\"")
+        #тут логика подписки 2
     await show_vacancies(update, context)
 
 # async def handle_category_selection(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -504,9 +515,10 @@ async def message_help_me(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 async def message_salary(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     text_salary = 'Выберите нужную вам зарплату или введите свое значение💸'
     keyboard = [
-        [KeyboardButton("от 30 000"), KeyboardButton("от 50 000") ],
-        [KeyboardButton("от 80 000"), KeyboardButton("от 100 000")],
-        [KeyboardButton("пропустить"), KeyboardButton("в начало")]        
+        [KeyboardButton("от 20 000"), KeyboardButton("от 40 000") ],
+        [KeyboardButton("от 50 000"), KeyboardButton("от 80 000")],
+        [KeyboardButton("от 100 000"), KeyboardButton("пропустить")],
+        [KeyboardButton("В начало")]        
     ]
     context.user_data['salary_vac_x'] = True
     reply_markup_keyboard = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
@@ -561,10 +573,6 @@ async def handle_keyboard(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         context.user_data['salary_vac_x']=False
         return
     
-    if text in ["Вперед", "Назад", "Назад в меню"]:
-        await handle_navigation(update, context)
-        return
-    
     if 'oops_x' in context.user_data and context.user_data['oops_x']:
         
         if text == 'да🙋🏻‍♂️' or 'да':
@@ -587,6 +595,18 @@ async def handle_keyboard(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         await update.message.reply_text(text_oops)
         context.user_data['oops_x'] = False   
         return
+    
+    if 'ask_to_sub' in context.user_data and context.user_data['ask_to_sub']:
+        # if text=='да🙋🏻‍♂️' or 'да':
+        #     salary={context.user_data.get('salary')}
+        #     ot_text=""
+        #     if any(ch.isdigit() for ch in salary):
+        #         ot_text+=" от"
+        #     await update.message.reply_text(f"Вы подписались на вакансию \"{context.user_data.get('category')}, зарплата -{ot_text} {salary}\"")
+        #     #тут логика подписки
+        # if text=='нет🙅🏻‍♂️' or 'нет':
+        #     await update.message.reply_text("Можете начать новый поиск🔍 или перейти на наш сайт🔗")
+        context.user_data['ask_to_sub']=False
 
     if  text == "Поиск вакансий🔍":
         await message_find_vacancies(update,context)
@@ -597,6 +617,9 @@ async def handle_keyboard(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         await message_site(update,context)
     elif text == "Помощь🙏🏻":
         await message_help_me(update,context)
+    elif text in ["Вперед➡️", "⬅️Назад", "Подписаться на вакансию🔔"]:
+        await handle_navigation(update, context)
+        return
     else:
         await update.message.reply_text("Я вас не понимаю. Вы можете вернуться в стартовое меню командой /start.")
 

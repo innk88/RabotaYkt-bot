@@ -4,3 +4,8 @@
 2024-07-26 01:49:27.167 UTC [1] LOG:  listening on Unix socket "/var/run/postgresql/.s.PGSQL.5432"
 2024-07-26 01:49:27.170 UTC [27] LOG:  database system was shut down at 2024-07-25 08:21:28 UTC
 2024-07-26 01:49:27.178 UTC [1] LOG:  database system is ready to accept connections
+2024-07-26 07:30:00.128 UTC [1] LOG:  received fast shutdown request
+2024-07-26 07:30:00.129 UTC [1] LOG:  aborting any active transactions
+2024-07-26 07:30:00.130 UTC [1] LOG:  background worker "logical replication launcher" (PID 33) exited with exit code 1
+2024-07-26 07:30:00.130 UTC [28] LOG:  shutting down
+2024-07-26 07:30:00.137 UTC [1] LOG:  database system is shut down
