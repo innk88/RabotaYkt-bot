@@ -310,12 +310,17 @@ async def fetch_vacancies(category, salary, page) -> list:
             for job_element in job_elements:
                 title_element=await job_element.query_selector('.r-vacancy_title')
                 salary_element=await job_element.query_selector('.r-vacancy_salary')
-                company_element= await job_element.query_selector('.r-vacancy_company a')
-
+                
                 title_text=await title_element.inner_text() if title_element else "Не указано"
                 salary_text=await salary_element.inner_text() if salary_element else "не указано"
                 salary_text=salary_text.replace("руб.", "₽")
-                company_text= await company_element.inner_text()
+
+                try:
+                    company_element= await job_element.query_selector('.r-vacancy_company a')
+                    company_text= await company_element.inner_text()
+                except:
+                    company_text="Не указано"
+
                 try:
                     address_element=await job_element.query_selector('.r-vacancy_work-address_address')
                     address_text=await address_element.inner_text() if address_element else "Не указано"
@@ -341,15 +346,16 @@ async def fetch_vacancies(category, salary, page) -> list:
                     condition_text="Не указано"
                 
                 vacancy_id=await title_element.get_attribute('data-id')
-                #print(vacancy_id)
                 # obligation_selector='.r-vacancy_body_full div:nth-child(4)'
                 # obligation_element=await job_element.query_selector(obligation_selector)
                 # obligation_text=await obligation_element.inner_text()
-                job_info = f"<b>{title_text}</b> - {salary_text}\n<i>{company_text}</i>\n\n<u>✅Требования:</u> {requirement_text}\n\n<u>✅Условия работы:</u> {condition_text}\n\n<u>📍Адрес места работы:</u> {address_text}\n\nПосмотреть на сайте: https://rabota.ykt.ru/jobs/view?id={vacancy_id}"
+                job_info = f"<b>{title_text}</b> - {salary_text}\n<i>{company_text}</i>\n\n<u>✅Требования:</u> {requirement_text}\n\n<u>✅Условия работы:</u> {condition_text}\n\n<u>📍Адрес места работы:</u> {address_text}\n\nПосмотреть на сайте: https://rabota.ykt.ru/jobs/view?id={vacancy_id} "
+                print(job_info)
                 jobs.append(job_info)
             await browser.close()
             return jobs
     except Exception as e:
+        return [-1]
         print(f"Error fetching vacancies: {e}")
 
 
@@ -374,6 +380,12 @@ async def message_search_results( update: Update, context: ContextTypes.DEFAULT_
     await update.message.reply_text("Идет поиск вакансий... 🔍")
     jobs = await fetch_vacancies(category, salary, page=1)
     jobs_count_str=jobs.pop(0)
+    if jobs_count_str==-1:
+        keyboard=[[KeyboardButton("в начало")]]
+        context.user_data['ask_to_sub'] = True
+        reply_markup_keyboard = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
+        await update.message.reply_text("Ошибка на сервере, попробуйте позже", reply_markup=reply_markup_keyboard)
+        return
     f=filter(str.isdigit, jobs_count_str)
     jobs_count_str = "".join(f)
     jobs_count=int(jobs_count_str)
@@ -420,17 +432,19 @@ async def show_vacancies(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     end_index=min(start_index+vacancies_per_page, jobs_count)
     current_index=start_index
     for vacancy in jobs[start_index:end_index]:
-        await update.message.reply_text(f"{current_index+1+(current_page-1)*20}. {vacancy}", parse_mode="html")
+        await update.message.reply_text(f"{current_index+1+(current_page-1)*20}. {vacancy}", parse_mode="html", disable_web_page_preview=True)
         current_index+=1
     keyboard=[]
+    message_text="."
     if not(current_group==0 and current_page==1):
         keyboard.append([KeyboardButton("⬅️Назад")])
     if not(end_index==jobs_count and current_page==page_count):
         keyboard.append([KeyboardButton("Вперед➡️")])
+        message_text="Чтобы посмотреть еще вакансии нажмите \"Вперед ➡️\""
     #keyboard.append([KeyboardButton("Подписаться на вакансию🔔")])
     keyboard.append([KeyboardButton("В начало")])
     reply_markup_keyboard = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True) 
-    await update.message.reply_text("Чтобы посмотреть еще вакансии нажмите \"Вперед ➡️\" ", reply_markup=reply_markup_keyboard)
+    await update.message.reply_text(message_text, reply_markup=reply_markup_keyboard)
 
 async def handle_navigation(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text=update.message.text
